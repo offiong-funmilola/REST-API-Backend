@@ -48,6 +48,7 @@ app.use((error, req, res, next) => {
     const data = error.data
     res.status(status).json({message: message, data: data})
 })
+
 mongoose.connect('mongodb+srv://fawolefunmilola2:zXCt5pIwE6za2ArR@cluster0.svlrvxo.mongodb.net/message')
 .then(res => {
     console.log('connected')
