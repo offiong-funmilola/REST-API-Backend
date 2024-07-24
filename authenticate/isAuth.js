@@ -1,11 +1,15 @@
 const jwt = require('jsonwebtoken')
+const dotenv = require('dotenv')
+dotenv.config();
+
+const SECRET = process.env.SECRET_KEY
 
 module.exports = (req, res, next) => {
     //accessing the token from the req header
     const authHeader = req.get('Authorization')
     if (!authHeader){
         const error = new Error('Not Authenticated')
-        error.statusCode = 401
+        error.statusCode = 403
         throw error
     }
     const token = authHeader.split(' ')[1]
@@ -13,7 +17,7 @@ module.exports = (req, res, next) => {
     try{
         //the verify method both decode the token and validate it, we can also use the decode method.
         //the vrify method takes the token and the secet key
-        decodedToken = jwt.verify(token, 'secretofconfirmeduserusedsecretquestion')
+        decodedToken = jwt.verify(token, SECRET)
     }
     catch(err) {
         err.statusCode = 500

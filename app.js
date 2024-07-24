@@ -5,8 +5,10 @@ const bodyParser = require('body-parser')
 const path = require('path')
 const mongoose = require('mongoose')
 const multer = require('multer')
+const dotenv = require('dotenv')
+dotenv.config();
 
-
+const CONNECTION = process.env.CONNECTION_URL
 const fileStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'images')
@@ -49,7 +51,7 @@ app.use((error, req, res, next) => {
     res.status(status).json({message: message, data: data})
 })
 
-mongoose.connect('mongodb+srv://fawolefunmilola2:zXCt5pIwE6za2ArR@cluster0.svlrvxo.mongodb.net/message')
+mongoose.connect(CONNECTION)
 .then(res => {
     console.log('connected')
     app.listen(8080)

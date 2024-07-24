@@ -5,34 +5,55 @@ const Post = require('../models/post')
 const User = require('../models/user')
 
 
-exports.getPosts = (req, res, next) => {
+exports.getPosts = async (req, res, next) => {
     const currentPage = req.query.page || 1;
     const perPage = 2
     let totalItems;
-    Post.find().countDocuments()
-    .then(totalCount => {
-        totalItems = totalCount
-        return Post.find()
-            .skip((currentPage - 1) * perPage)
-            .limit(perPage)
-    })
-    .then(posts => {
-        if(!posts){
-            const error = new Error('There are no posts')
-            error.statusCode = 422
-            throw error
+    try {
+       const totalCount = await  Post.find().countDocuments() 
+       totalItems = totalCount
+       const posts = await Post.find()
+       //.populate('creator')
+       .skip((currentPage - 1) * perPage)
+       .limit(perPage)
+       if(!posts){
+        const error = new Error('There are no posts')
+        error.statusCode = 422
+        throw error
         }
-        res.status(200).json({message: 'Posts retrieval successful', posts: posts, totalItems: totalItems })
-    })
-    .catch(err => {
+        res.status(200).json({message: 'Posts retrieval successful', posts: posts, totalItems: totalItems })   
+    }
+    catch(err) {
         if(!err.statusCode){
             err.statusCode = 500
         }
         next(err)
-    }) 
+    } 
+    // Post.find().countDocuments()
+    // .then(totalCount => {
+    //     totalItems = totalCount
+    //     return Post.find()
+     //         .populate('creator') //This is trying to get access to the user collection since the creator field is a ref to the user collection from the post collection
+    //         .skip((currentPage - 1) * perPage)
+    //         .limit(perPage)
+    // })
+    // .then(posts => {
+    //     if(!posts){
+    //         const error = new Error('There are no posts')
+    //         error.statusCode = 422
+    //         throw error
+    //     }
+    //     res.status(200).json({message: 'Posts retrieval successful', posts: posts, totalItems: totalItems })
+    // })
+    // .catch(err => {
+    //     if(!err.statusCode){
+    //         err.statusCode = 500
+    //     }
+    //     next(err)
+    // }) 
 }
 
-exports.createPost = (req, res, next) => {
+exports.createPost = async(req, res, next) => {
     const errors = validationResult(req)
     //using the general error handling to handle error, the next method is not use here because this is an synchronous environment
     if(!errors.isEmpty()){
@@ -53,59 +74,100 @@ exports.createPost = (req, res, next) => {
         title: title,
         content: content,
         imageUrl: imageUrl,
-        creator: req.userId
+        creator: req.userId // the value for the creator is a string, however mongoose will convert the string to objectId 
     })
-    post.save()
-    .then(result => {
-        return User.findById(req.userId)
-    })
-    .then(user => {
-        if(!user){
-            const error = new Error ('user not found')
-            error.statusCode = 401
-            throw error 
-        }
-        creator = user
-        user.post.push(post)
-        return user.save()
-    })
-    .then(result => {
-        res.status(201).json({
-            message: "Post created successfully",
-            post: post,
-            creator: {id: creator._id.toString(), name: creator.name}
-        })
-    })
-    .catch(err => {
+    try {
+        const result = await post.save()
+        let user;
+        if (result) {
+            user = await User.findById(req.userId)
+            if(!user){
+                const error = new Error ('user not found')
+                error.statusCode = 404 
+                throw error 
+            }
+            creator = user
+            user.post.push(post) // is better I write posts because it is an array of postId's created by a particular user. Although we sent the entire post to the array mongoose extract the postId which is needed data
+            const response = await user.save()
+            res.status(201).json({
+                message: "Post created successfully",
+                post: post,
+                creator: {id: creator._id.toString(), name: creator.name}
+            })
+        }        
+    }
+    catch(err) {
         if(!err.statusCode){
             err.statusCode = 500
         }
         next(err)
-    })    
-   
+    }    
+    // post.save()
+    // .then(result => {
+    //     return User.findById(req.userId)
+    // })
+    // .then(user => {
+    //     if(!user){
+    //         const error = new Error ('user not found')
+    //         error.statusCode = 404 
+    //         throw error 
+    //     }
+    //     creator = user
+    //     user.post.push(post) // is better I write posts because it is an array of postId's created by a particular user. Although we sent the entire post to the array mongoose extract the postId which is needed data
+    //     return user.save()
+    // })
+    // .then(result => {
+    //     res.status(201).json({
+    //         message: "Post created successfully",
+    //         post: post,
+    //         creator: {id: creator._id.toString(), name: creator.name}
+    //     })
+    // })
+    // .catch(err => {
+    //     if(!err.statusCode){
+    //         err.statusCode = 500
+    //     }
+    //     next(err)
+    // })    
+  
 }
 
-exports.getPost = (req, res, next) => {
+exports.getPost = async (req, res, next) => {
     const postId = req.params.postId
-    Post.findById(postId)
-    .then(post => {
+    try{
+        const post = await Post.findById(postId)
         if(!post){
             const error = new Error('There is no post identified')
             error.statusCode = 404
             throw error
-        }
+        } 
         res.status(200).json({message: 'Post successfully retrieved', post: post})
-    })
-    .catch(err => {
+    }
+    catch (err) {
         if(!err.statusCode){
             err.statusCode = 500
         }
         next(err)
-        //console.log(err)
-    })
+    }
+
+    // .then(post => {
+    //     if(!post){
+    //         const error = new Error('There is no post identified')
+    //         error.statusCode = 404
+    //         throw error
+    //     }
+    //     res.status(200).json({message: 'Post successfully retrieved', post: post})
+    // })
+    // .catch(err => {
+    //     if(!err.statusCode){
+    //         err.statusCode = 500
+    //     }
+    //     next(err)
+    //   
+    // })
 }
 
-exports.updatePost = (req, res, next) => {
+exports.updatePost = async (req, res, next) => {
     const errors = validationResult(req)
     if(!errors.isEmpty()){
         const error = new Error ('Validation failed')
@@ -125,11 +187,11 @@ exports.updatePost = (req, res, next) => {
         error.statusCode = 422
         throw error
     }
-    Post.findById(postId)
-    .then(post => {
+    try {
+        const post = await Post.findById(postId)
         if(!post){
             const error = new Error('No Post is identified')
-            error.statusCode = 422
+            error.statusCode = 404
             throw error 
         }
         if(post.creator.toString() !== req.userId){
@@ -143,23 +205,51 @@ exports.updatePost = (req, res, next) => {
         post.title = title
         post.content = content
         post.imageUrl = imageUrl
-        return post.save()
-    })
-    .then(result => {
-        res.status(200).json({message: 'Post updated', post: result})
-    })
-    .catch(err => {
+        const updatedPost = await post.save()
+        res.status(200).json({message: 'Post updated', post: updatedPost})
+    }
+    catch(err){
         if(!err.statusCode){
             err.statusCode = 500
         }
         next(err)
-    })
+    }
+    // Post.findById(postId)
+    // .then(post => {
+    //     if(!post){
+    //         const error = new Error('No Post is identified')
+    //         error.statusCode = 404
+    //         throw error 
+    //     }
+    //     if(post.creator.toString() !== req.userId){
+    //         const error = new Error('UnAuthorized for this action')
+    //         error.statusCode = 403
+    //         throw error
+    //     }
+    //     if(imageUrl !== post.imageUrl){
+    //         clearImage(post.imageUrl)
+    //     }
+    //     post.title = title
+    //     post.content = content
+    //     post.imageUrl = imageUrl
+    //     return post.save()
+    // })
+    // .then(result => {
+    //     res.status(200).json({message: 'Post updated', post: result})
+    // })
+    // .catch(err => {
+    //     if(!err.statusCode){
+    //         err.statusCode = 500
+    //     }
+    //     next(err)
+    // })
 }
 
-exports.deletePost = (req, res, next) => {
+exports.deletePost = async (req, res, next) => {
     const postId = req.params.postId
-    Post.findById(postId)
-    .then(post => {
+    //console.log(postId)
+    try {
+        const post = await Post.findById(postId)
         if(!post){
             const error = new Error('No Post is identified')
             error.statusCode = 422
@@ -170,32 +260,67 @@ exports.deletePost = (req, res, next) => {
             error.statusCode = 403
             throw error
         }
-        //check if the user is the creator of the post before we delete
+        //I have to look at the imagepath, as the arguement passed to the clear image, it is undefined
         clearImage(post.imageUrl)
-        return Post.findByIdAndDelete(postId)
-    })
-    .then(result => { 
-        //removing the deleted post from the user ref
-        return User.findById(req.userId)
-    })
-    .then(user => {
+        //delete the particular post from the Post collection
+        const response = await Post.findByIdAndDelete(postId)
+        //removing the deleted post from the post array ref in the user collection
+        const user = await User.findById(req.userId)
         if(!user){
             const error = new Error('User not found')
             error.statusCode = 404
             throw error
         }
-        return user.post.pull(postId)
-    }) 
-    .then(result => {
-        res.status(200).json({message:'Delete successful'})
-    })       
-    .catch(err => {
+        //console.log(user.post)
+        user.post.pull(postId)
+        await user.save()
+       res.status(200).json({message:'Delete successful'})
+
+    }
+    catch(err){
         if(!err.statusCode){
             err.statusCode = 500
         }
         next(err)
-    })
+    }
+    // .then(post => {
+    //     if(!post){
+    //         const error = new Error('No Post is identified')
+    //         error.statusCode = 422
+    //         throw error 
+    //     }
+    //     if(post.creator.toString() !== req.userId){
+    //         const error = new Error('UnAuthorized for this action')
+    //         error.statusCode = 403
+    //         throw error
+    //     }
+    //     //check if the user is the creator of the post before we delete
+    //     clearImage(post.imageUrl)
+    //     return Post.findByIdAndDelete(postId)
+    // })
+    // .then(result => { 
+    //     //removing the deleted post from the user ref
+    //     return User.findById(req.userId)
+    // })
+    // .then(user => {
+    //     if(!user){
+    //         const error = new Error('User not found')
+    //         error.statusCode = 404
+    //         throw error
+    //     }
+    //     return user.post.pull(postId)
+    // }) 
+    // .then(result => {
+    //     res.status(200).json({message:'Delete successful'})
+    // })       
+    // .catch(err => {
+    //     if(!err.statusCode){
+    //         err.statusCode = 500
+    //     }
+    //     next(err)
+    // })
 }
+
 
 const clearImage = (imagePath) => {
     const filePath = path.join(__dirname, '..', imagePath)
