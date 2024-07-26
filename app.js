@@ -53,8 +53,13 @@ app.use((error, req, res, next) => {
 
 mongoose.connect(CONNECTION)
 .then(res => {
-    console.log('connected')
-    app.listen(8080)
+    const server = app.listen(8080)
+    const io = require('./socket').init(server)
+    io.on('connection', socket => {
+        //when we listen to connection to users, socket is return with a unique id for individual connected user
+        console.log('Client Connected')    
+    })
+    console.log('connected')    
 })
 .catch(err => {
     console.log(err)
